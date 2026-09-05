@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign → Text</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --ink: #12141a;
+    --paper: #eef0ee;
+    --line: #2c303a;
+    --line-soft: rgba(238,240,238,0.14);
+    --signal: #5ee0c4;
+    --signal-dim: rgba(94,224,196,0.16);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6vh 20px 10vh;
+  }
+
+  .dots {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: radial-gradient(var(--line-soft) 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.5;
+    z-index: 0;
+  }
+
+  main { position: relative; z-index: 1; width: 100%; max-width: 560px; }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--signal);
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: clamp(32px, 6vw, 46px);
+    font-weight: 700;
+    line-height: 1.05;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+
+  p.lede {
+    font-size: 16px;
+    line-height: 1.5;
+    color: rgba(238,240,238,0.7);
+    max-width: 44ch;
+    margin: 0 0 44px;
+  }
+
+  .dropzone {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 36px 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: rgba(255,255,255,0.02);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--signal); background: var(--signal-dim); }
+  .dropzone input { display: none; }
+
+  .dropzone .glyph {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    color: var(--signal);
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .dropzone .instruction { font-size: 15px; color: rgba(238,240,238,0.85); }
+  .dropzone .filename {
+    margin-top: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--signal);
+    word-break: break-all;
+  }
+
+  video.preview {
+    width: 100%;
+    margin-top: 20px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    display: none;
+  }
+
+  button.run {
+    width: 100%;
+    margin-top: 24px;
+    padding: 15px;
+    background: var(--signal);
+    color: var(--ink);
+    border: none;
+    border-radius: 4px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  button.run:disabled { opacity: 0.35; cursor: not-allowed; }
+  button.run:not(:disabled):hover { opacity: 0.88; }
+
+  .result {
+    margin-top: 40px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    display: none;
+  }
+
+  .result .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: rgba(238,240,238,0.5);
+    margin-bottom: 10px;
+  }
+
+  .result .text {
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--signal);
+    line-height: 1.3;
+    min-height: 1.3em;
+  }
+
+  .status {
+    margin-top: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: rgba(238,240,238,0.55);
+    display: none;
+  }
+
+  .status.error { color: #ff8b7d; }
+
+  .endpoint {
+    margin-top: 56px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: rgba(238,240,238,0.35);
+  }
+  .endpoint input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    color: rgba(238,240,238,0.6);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    width: 220px;
+    padding: 2px 0;
+  }
+</style>
+</head>
+<body>
+  <div class="dots"></div>
+  <main>
+    <p class="eyebrow">wlasl · video to gloss</p>
+    <h1>Show it. Read it.</h1>
+    <p class="lede">Upload a clip of a sign, and the model reads the motion frame by frame and writes down the word it sees.</p>
+
+    <label class="dropzone" id="dropzone">
+      <span class="glyph">◇</span>
+      <span class="instruction" id="instruction">Drop a video here, or click to choose one</span>
+      <span class="filename" id="filename"></span>
+      <input type="file" id="fileInput" accept="video/*">
+    </label>
+
+    <video class="preview" id="preview" controls></video>
+
+    <button class="run" id="runBtn" disabled>Translate sign</button>
+
+    <p class="status" id="status"></p>
+
+    <div class="result" id="result">
+      <p class="label">predicted gloss</p>
+      <p class="text" id="resultText"></p>
+    </div>
+
+    <p class="endpoint">
+      backend: <input type="text" id="apiUrl" value="http://localhost:8000">
+    </p>
+  </main>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const instruction = document.getElementById('instruction');
+  const filenameEl = document.getElementById('filename');
+  const preview = document.getElementById('preview');
+  const runBtn = document.getElementById('runBtn');
+  const statusEl = document.getElementById('status');
+  const resultBox = document.getElementById('result');
+  const resultText = document.getElementById('resultText');
+  const apiUrlInput = document.getElementById('apiUrl');
+
+  let selectedFile = null;
+
+  function setFile(file) {
+    if (!file) return;
+    selectedFile = file;
+    instruction.textContent = 'Video selected';
+    filenameEl.textContent = file.name;
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    runBtn.disabled = false;
+    resultBox.style.display = 'none';
+    statusEl.style.display = 'none';
+  }
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => setFile(e.target.files[0]));
+
+  ['dragover', 'dragenter'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', (e) => setFile(e.dataTransfer.files[0]));
+
+  runBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    runBtn.disabled = true;
+    statusEl.style.display = 'block';
+    statusEl.classList.remove('error');
+    statusEl.textContent = 'Reading motion, running the model…';
+    resultBox.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const base = apiUrlInput.value.replace(/\/$/, '');
+      const resp = await fetch(`${base}/predict`, { method: 'POST', body: formData });
+
+      if (!resp.ok) {
+        const detail = await resp.json().catch(() => ({}));
+        throw new Error(detail.detail || `Server returned ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      statusEl.style.display = 'none';
+      resultText.textContent = data.prediction || '(no prediction returned)';
+      resultBox.style.display = 'block';
+    } catch (err) {
+      statusEl.classList.add('error');
+      statusEl.textContent = `Couldn't get a prediction: ${err.message}`;
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
